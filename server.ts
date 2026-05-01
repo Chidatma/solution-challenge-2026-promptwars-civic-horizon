@@ -1,7 +1,6 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -14,10 +13,10 @@ async function startServer() {
 
   app.post("/api/chat", async (req, res) => {
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GROQ_API_KEY;
       if (!apiKey) {
         return res.status(500).json({
-          error: "Server is missing GEMINI_API_KEY. Add it to your .env and restart the server.",
+          error: "Server is missing GROQ_API_KEY. Add it to your .env and restart the server.",
         });
       }
 
@@ -35,8 +34,6 @@ async function startServer() {
       const language = body.language === "hi" ? "Hindi" : "English";
       const history = Array.isArray(body.history) ? body.history : [];
 
-      const ai = new GoogleGenAI({ apiKey });
-
       const systemInstruction = `You are Electra, an expert nonpartisan civic education guide. Your mission is to clearly explain election processes, voter rights, and democratic institutions.
 
 VISUALIZATION CAPABILITY:
@@ -44,32 +41,48 @@ If the user asks for data, statistics, or complex processes (like voter turnout,
 
 You are authoritative but warm. You NEVER express political opinions. Format responses with clear structure. Keep responses under 200 words. RESPOND IN THE LANGUAGE OF THE USER REQUEST (Current app language preference is: ${language}).`;
 
-      const contents = [
+
+      const messages = [
+        { role: "system", content: systemInstruction },
         ...history
           .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
           .map((m) => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.content }],
+            role: m.role,
+            content: m.content,
           })),
-        { role: "user", parts: [{ text: userMessage }] },
+        { role: "user", content: userMessage },
       ];
 
-      const tryModels = ["gemini-3-flash-preview", "gemini-2.0-flash"];
-      let lastError: unknown;
+      const primaryModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+      const fallbackModel = process.env.GROQ_FALLBACK_MODEL;
+      const tryModels = fallbackModel && fallbackModel !== primaryModel ? [primaryModel, fallbackModel] : [primaryModel];
 
+      let lastError: unknown;
       for (const model of tryModels) {
         try {
-          const result = await ai.models.generateContent({
-            model,
-            contents,
-            config: {
-              systemInstruction,
+          const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
             },
+            body: JSON.stringify({
+              model,
+              messages,
+              temperature: 0.4,
+              max_tokens: 300,
+            }),
           });
 
-          if (result.text) {
-            return res.json({ text: result.text, model });
+          if (!resp.ok) {
+            const txt = await resp.text();
+            lastError = new Error(txt || `Upstream error (${resp.status})`);
+            continue;
           }
+
+          const data = (await resp.json()) as any;
+          const text: string | undefined = data?.choices?.[0]?.message?.content;
+          if (text) return res.json({ text, model });
 
           lastError = new Error("Empty model response");
         } catch (err) {

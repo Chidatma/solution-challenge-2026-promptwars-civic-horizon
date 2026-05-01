@@ -1,13 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { GoogleGenAI } from "@google/genai";
+
+type GroqChatMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
   res.setHeader('Cache-Control', 'no-store');
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: "Missing GEMINI_API_KEY" });
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: "Missing GROQ_API_KEY" });
 
   const { userMessage, history, language } = req.body as {
     userMessage?: string;
@@ -18,18 +22,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!userMessage?.trim()) return res.status(400).json({ error: "Missing userMessage" });
 
   const lang = language === "hi" ? "Hindi" : "English";
-  const ai = new GoogleGenAI({ apiKey });
 
   const systemInstruction = `You are Electra, an expert nonpartisan civic education guide. Your mission is to clearly explain election processes, voter rights, and democratic institutions.
 VISUALIZATION CAPABILITY: If the user asks for data, statistics, or complex processes, provide a JSON visualization block: [CHART_DATA: {"type": "bar" | "pie" | "line", "title": "Chart Title", "data": [{"name": "A", "value": 10}]}].
 You are authoritative but warm. NEVER express political opinions. Keep responses under 200 words. RESPOND IN: ${lang}.`;
 
-  const contents = [
+  const messages: GroqChatMessage[] = [
+    { role: 'system', content: systemInstruction },
     ...(history ?? []).map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+      role: (m.role === 'assistant' ? 'assistant' : 'user') as 'assistant' | 'user',
+      content: m.content,
     })),
-    { role: "user", parts: [{ text: userMessage }] },
+    { role: 'user', content: userMessage },
   ];
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -74,19 +78,52 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
     const anyErr = err as any;
     const status = anyErr?.status ?? anyErr?.code ?? anyErr?.response?.status;
     const message = String(anyErr?.message ?? '');
-    return status === 404 && message.includes('models/') && (message.includes('not found') || message.includes('NOT_FOUND'));
+    return status === 404 && (message.toLowerCase().includes('model') || message.toLowerCase().includes('not found'));
   };
 
   try {
-    const primaryModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL;
+    const primaryModel = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
+    const fallbackModel = process.env.GROQ_FALLBACK_MODEL;
 
-    const callModel = async (model: string) =>
-      ai.models.generateContent({
-        model,
-        contents,
-        config: { systemInstruction },
+    const callModel = async (model: string) => {
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.4,
+          max_tokens: 300,
+        }),
       });
+
+      const retryAfterHeader = resp.headers.get('retry-after');
+      if (!resp.ok) {
+        let errorText = '';
+        try {
+          const errJson = (await resp.json()) as any;
+          errorText = errJson?.error?.message || errJson?.message || JSON.stringify(errJson);
+        } catch {
+          errorText = (await resp.text()).slice(0, 400);
+        }
+        const err: any = new Error(errorText || `Upstream error (${resp.status})`);
+        err.status = resp.status;
+        if (retryAfterHeader) err.retryAfter = retryAfterHeader;
+        throw err;
+      }
+
+      const data = (await resp.json()) as any;
+      const text: string | undefined = data?.choices?.[0]?.message?.content;
+      if (!text) {
+        const err: any = new Error('Empty response from model');
+        err.status = 502;
+        throw err;
+      }
+      return { text };
+    };
 
     let result;
     try {
@@ -123,7 +160,7 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
       console.warn('/api/chat invalid model configured');
       return res.status(500).json({
         error:
-          "Invalid Gemini model configured. Set GEMINI_MODEL (and optionally GEMINI_FALLBACK_MODEL) to a model that supports generateContent for the API version in use.",
+          "Invalid Groq model configured. Set GROQ_MODEL (and optionally GROQ_FALLBACK_MODEL) to a model available for your Groq account.",
       });
     }
 

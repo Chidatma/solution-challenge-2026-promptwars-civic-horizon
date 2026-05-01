@@ -135,11 +135,11 @@ export const ChatGuide: React.FC = () => {
         friendly = language === 'hi'
           ? 'बहुत अधिक अनुरोध हो गए हैं। कृपया 30 सेकंड बाद पुनः प्रयास करें।'
           : 'Too many requests right now. Please try again in about 30 seconds.';
-      } else if (errMsg.includes('Missing GEMINI_API_KEY')) {
+      } else if (errMsg.includes('Missing GROQ_API_KEY')) {
         friendly = language === 'hi'
           ? 'सर्वर कॉन्फ़िगरेशन में समस्या है (API key missing)।'
           : 'Server configuration issue (missing API key).';
-      } else if (errMsg.includes('Invalid Gemini model configured')) {
+      } else if (errMsg.includes('Invalid Groq model configured')) {
         friendly = language === 'hi'
           ? 'सर्वर मॉडल कॉन्फ़िगरेशन गलत है।'
           : 'Server model configuration is invalid.';
