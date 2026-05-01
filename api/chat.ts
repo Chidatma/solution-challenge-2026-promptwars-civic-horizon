@@ -4,6 +4,8 @@ import { GoogleGenAI } from "@google/genai";
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
+  res.setHeader('Cache-Control', 'no-store');
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "Missing GEMINI_API_KEY" });
 
@@ -30,16 +32,59 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
     { role: "user", parts: [{ text: userMessage }] },
   ];
 
-  try {
-    const result = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents,
-      config: { systemInstruction },
-    });
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-    return res.json({ text: result.text });
+  const isRateLimitError = (err: unknown) => {
+    const anyErr = err as any;
+    const status = anyErr?.status ?? anyErr?.code ?? anyErr?.response?.status;
+    const message = String(anyErr?.message ?? '');
+    return status === 429 || message.includes('429') || message.includes('RESOURCE_EXHAUSTED');
+  };
+
+  const isRetryableUpstreamError = (err: unknown) => {
+    const anyErr = err as any;
+    const status = anyErr?.status ?? anyErr?.code ?? anyErr?.response?.status;
+    return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  };
+
+  try {
+    const primaryModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-flash";
+
+    const callModel = async (model: string) =>
+      ai.models.generateContent({
+        model,
+        contents,
+        config: { systemInstruction },
+      });
+
+    let result;
+    try {
+      result = await callModel(primaryModel);
+    } catch (err) {
+      if (isRetryableUpstreamError(err)) {
+        await sleep(350 + Math.floor(Math.random() * 250));
+        try {
+          result = await callModel(primaryModel);
+        } catch (err2) {
+          if (fallbackModel && fallbackModel !== primaryModel && isRetryableUpstreamError(err2)) {
+            result = await callModel(fallbackModel);
+          } else {
+            throw err2;
+          }
+        }
+      } else {
+        throw err;
+      }
+    }
+
+    return res.status(200).json({ text: result.text });
   } catch (err) {
     console.error("/api/chat error", err);
+    if (isRateLimitError(err)) {
+      res.setHeader('Retry-After', '30');
+      return res.status(429).json({ error: "Rate limit exceeded. Please try again shortly." });
+    }
     return res.status(502).json({ error: "Upstream model error" });
   }
 }
