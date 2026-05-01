@@ -110,9 +110,9 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
 
     return res.status(200).json({ text: result.text });
   } catch (err) {
-    console.error("/api/chat error", err);
     if (isRateLimitError(err)) {
       const retryAfter = getRetryAfterSeconds(err) ?? 60;
+      console.warn(`/api/chat rate limited (retryAfter=${retryAfter}s)`);
       res.setHeader('Retry-After', String(retryAfter));
       return res.status(429).json({
         error: "Rate limit exceeded. Please try again shortly.",
@@ -120,11 +120,14 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
       });
     }
     if (isModelNotFoundError(err)) {
+      console.warn('/api/chat invalid model configured');
       return res.status(500).json({
         error:
           "Invalid Gemini model configured. Set GEMINI_MODEL (and optionally GEMINI_FALLBACK_MODEL) to a model that supports generateContent for the API version in use.",
       });
     }
+
+    console.error("/api/chat error", err);
     return res.status(502).json({ error: "Upstream model error" });
   }
 }
