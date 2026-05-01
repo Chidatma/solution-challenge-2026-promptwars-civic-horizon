@@ -47,9 +47,16 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
     return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
   };
 
+  const isModelNotFoundError = (err: unknown) => {
+    const anyErr = err as any;
+    const status = anyErr?.status ?? anyErr?.code ?? anyErr?.response?.status;
+    const message = String(anyErr?.message ?? '');
+    return status === 404 && message.includes('models/') && (message.includes('not found') || message.includes('NOT_FOUND'));
+  };
+
   try {
     const primaryModel = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-flash";
+    const fallbackModel = process.env.GEMINI_FALLBACK_MODEL;
 
     const callModel = async (model: string) =>
       ai.models.generateContent({
@@ -84,6 +91,12 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
     if (isRateLimitError(err)) {
       res.setHeader('Retry-After', '30');
       return res.status(429).json({ error: "Rate limit exceeded. Please try again shortly." });
+    }
+    if (isModelNotFoundError(err)) {
+      return res.status(500).json({
+        error:
+          "Invalid Gemini model configured. Set GEMINI_MODEL (and optionally GEMINI_FALLBACK_MODEL) to a model that supports generateContent for the API version in use.",
+      });
     }
     return res.status(502).json({ error: "Upstream model error" });
   }

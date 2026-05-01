@@ -184,7 +184,7 @@ export const translations = {
       subtitle: 'REAL-TIME CIVIC INTELLIGENCE',
       placeholder: 'Ask anything about the election process...',
       greeting: 'Greeting, citizen. I am **Electra**, your guide to the machinery of democracy. How can I illuminate the election process for you today?',
-      error: 'I\'m having trouble connecting to the civic database. Please try again in a moment.',
+      error: 'Electra is having trouble responding right now. Please try again in a moment.',
       suggestions: [
         "How do primaries work?",
         "What is the Electoral College?",
@@ -422,7 +422,7 @@ export const translations = {
       subtitle: 'वास्तविक समय नागरिक बुद्धिमत्ता',
       placeholder: 'चुनाव प्रक्रिया के बारे में कुछ भी पूछें...',
       greeting: 'नमस्कार, नागरिक। मैं **इलेक्ट्रा** हूँ, लोकतंत्र की मशीनरी के लिए आपकी मार्गदर्शक। आज मैं आपके लिए चुनाव प्रक्रिया को कैसे स्पष्ट कर सकती हूँ?',
-      error: 'मुझे नागरिक डेटाबेस से जुड़ने में समस्या हो रही है। कृपया कुछ देर बाद पुनः प्रयास करें।',
+      error: 'इलेक्ट्रा अभी उत्तर देने में असमर्थ है। कृपया कुछ देर बाद पुनः प्रयास करें।',
       suggestions: [
         "प्राइमरी कैसे काम करते हैं?",
         "इलेक्टोरल कॉलेज क्या है?",
