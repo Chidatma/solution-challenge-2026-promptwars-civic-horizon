@@ -98,6 +98,12 @@ export const ChatGuide: React.FC = () => {
         }),
       });
 
+      const contentType = resp.headers.get('content-type') ?? '';
+      if (!contentType.toLowerCase().includes('application/json')) {
+        const preview = (await resp.text()).slice(0, 200);
+        throw new Error(`Chat API returned non-JSON (${resp.status}): ${preview}`);
+      }
+
       if (!resp.ok) {
         let details = '';
         try {
