@@ -1,0 +1,11 @@
+{
+  "name": "Civic Horizon: The Election Experience",
+  "description": "A cinematic, AI-powered interactive civic education platform teaching the election process through immersive storytelling and real-time simulations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "AI-powered civic guide",
+    "Interactive voting simulation",
+    "Gamified learning paths",
+    "Real-time election data visualization"
+  ]
+}
