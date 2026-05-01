@@ -24,7 +24,7 @@
 
 | Resource | Link |
 |---|---|
-| Live Demo | *Coming Soon* |
+| Live Demo | https://civic-horizon-ten.vercel.app/ |
 | GitHub Repo | https://github.com/Chidatma/solution-challenge-2026-promptwars-civic-horizon |
 | Demo Video | *Coming Soon* |
 
