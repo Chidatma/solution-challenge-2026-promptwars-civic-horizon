@@ -1,0 +1,68 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public and Private user data including XP and level.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier for the user." },
+        "email": { "type": "string", "format": "email", "description": "User's email address." },
+        "displayName": { "type": "string", "description": "User's display name." },
+        "xp": { "type": "integer", "description": "Total experience points earned." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp." }
+      },
+      "required": ["uid", "xp", "updatedAt"]
+    },
+    "Progress": {
+      "title": "User Topic Progress",
+      "description": "Tracks progress for specific educational topics.",
+      "type": "object",
+      "properties": {
+        "topicId": { "type": "string" },
+        "value": { "type": "integer", "description": "Progress percentage (0-100)" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["topicId", "value", "updatedAt"]
+    },
+    "Badge": {
+      "title": "User Badge",
+      "description": "Achieved badges for the user.",
+      "type": "object",
+      "properties": {
+        "badgeId": { "type": "string" },
+        "earnedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["badgeId", "earnedAt"]
+    },
+    "Vote": {
+      "title": "Simulated Vote",
+      "description": "A simulated vote cast by a user.",
+      "type": "object",
+      "properties": {
+        "candidate": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "voterName": { "type": "string" },
+        "voterEmail": { "type": "string" }
+      },
+      "required": ["candidate", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Root collection for user profiles."
+    },
+    "/users/{userId}/progress/{topicId}": {
+      "schema": "Progress",
+      "description": "Subcollection tracking per-topic progress."
+    },
+    "/users/{userId}/badges/{badgeId}": {
+      "schema": "Badge",
+      "description": "Subcollection for earned achievement badges."
+    },
+    "/user_votes/{userId}": {
+      "schema": "Vote",
+      "description": "Collection of simulated votes cast in the voting simulator."
+    }
+  }
+}
