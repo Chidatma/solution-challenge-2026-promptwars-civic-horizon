@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // --- User Validation ---
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'xp', 'updatedAt']) 
+        && data.keys().size() <= 5
+        && data.uid == request.auth.uid
+        && data.xp is int && data.xp >= 0
+        && data.updatedAt == request.time;
+    }
+
+    // --- Progress Validation ---
+    function isValidProgress(data) {
+      return data.keys().hasAll(['topicId', 'value', 'updatedAt'])
+        && data.keys().size() == 3
+        && data.topicId is string && data.topicId.size() <= 128
+        && data.value is int && data.value >= 0 && data.value <= 100
+        && data.updatedAt == request.time;
+    }
+
+    // --- Badge Validation ---
+    function isValidBadge(data) {
+      return data.keys().hasAll(['badgeId', 'earnedAt'])
+        && data.keys().size() == 2
+        && data.badgeId is string && data.badgeId.size() <= 128
+        && data.earnedAt == request.time;
+    }
+
+    // --- Vote Validation ---
+    function isValidVote(data) {
+      return data.keys().hasAll(['candidate', 'timestamp'])
+        && data.candidate is string && data.candidate.size() <= 128
+        && data.timestamp == request.time;
+    }
+
+    // --- Path Rules ---
+
+    match /system/heartbeat {
+      allow get: if isSignedIn();
+    }
+
+    match /user_votes/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidVote(incoming());
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming())
+        && (incoming().diff(existing()).affectedKeys().hasOnly(['xp', 'updatedAt', 'displayName', 'email']));
+      
+      match /progress/{topicId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) 
+          && isValidId(topicId) 
+          && isValidProgress(incoming())
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isOwner(userId)
+          && isValidProgress(incoming())
+          && (incoming().diff(existing()).affectedKeys().hasOnly(['value', 'updatedAt']));
+      }
+
+      match /badges/{badgeId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(badgeId)
+          && isValidBadge(incoming())
+          && exists(/databases/$(database)/documents/users/$(userId));
+      }
+    }
+  }
+}
