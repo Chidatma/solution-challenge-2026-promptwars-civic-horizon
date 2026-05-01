@@ -25,7 +25,7 @@
 | Resource | Link |
 |---|---|
 | Live Demo | *Coming Soon* |
-| GitHub Repo | *Coming Soon* |
+| GitHub Repo | https://github.com/Chidatma/solution-challenge-2026-promptwars-civic-horizon |
 | Demo Video | *Coming Soon* |
 
 ---
