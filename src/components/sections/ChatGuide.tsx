@@ -105,6 +105,7 @@ export const ChatGuide: React.FC = () => {
       }
 
       if (!resp.ok) {
+        const retryAfterHeader = resp.headers.get('retry-after');
         let details = '';
         try {
           const errJson = (await resp.json()) as { error?: string };
@@ -112,6 +113,14 @@ export const ChatGuide: React.FC = () => {
         } catch {
           // ignore
         }
+
+        if (resp.status === 429 && retryAfterHeader) {
+          const secs = Number.parseInt(retryAfterHeader, 10);
+          if (Number.isFinite(secs) && secs > 0) {
+            throw new Error(`${details || 'Rate limit exceeded'}. Retry in ${secs}s.`);
+          }
+        }
+
         throw new Error(details ? `Chat request failed: ${details}` : `Chat request failed (${resp.status})`);
       }
 

@@ -41,6 +41,29 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
     return status === 429 || message.includes('429') || message.includes('RESOURCE_EXHAUSTED');
   };
 
+  const getRetryAfterSeconds = (err: unknown): number | undefined => {
+    const anyErr = err as any;
+    const message = String(anyErr?.message ?? '');
+
+    // Common patterns we might see in error text.
+    const msgMatch = message.match(/retry in\s+([0-9]+(?:\.[0-9]+)?)s/i);
+    if (msgMatch) return Math.max(1, Math.ceil(Number(msgMatch[1])));
+
+    // Some errors include structured details with retryDelay like "57s".
+    const details = anyErr?.error?.details ?? anyErr?.details;
+    if (Array.isArray(details)) {
+      for (const d of details) {
+        const retryDelay = (d as any)?.retryDelay;
+        if (typeof retryDelay === 'string') {
+          const m = retryDelay.match(/^(\d+)s$/);
+          if (m) return Math.max(1, Number(m[1]));
+        }
+      }
+    }
+
+    return undefined;
+  };
+
   const isRetryableUpstreamError = (err: unknown) => {
     const anyErr = err as any;
     const status = anyErr?.status ?? anyErr?.code ?? anyErr?.response?.status;
@@ -89,8 +112,12 @@ You are authoritative but warm. NEVER express political opinions. Keep responses
   } catch (err) {
     console.error("/api/chat error", err);
     if (isRateLimitError(err)) {
-      res.setHeader('Retry-After', '30');
-      return res.status(429).json({ error: "Rate limit exceeded. Please try again shortly." });
+      const retryAfter = getRetryAfterSeconds(err) ?? 60;
+      res.setHeader('Retry-After', String(retryAfter));
+      return res.status(429).json({
+        error: "Rate limit exceeded. Please try again shortly.",
+        retryAfterSeconds: retryAfter,
+      });
     }
     if (isModelNotFoundError(err)) {
       return res.status(500).json({
